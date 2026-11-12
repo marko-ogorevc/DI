@@ -1,0 +1,2 @@
+institution_id,care_type,units_start,places_per_unit,min_units_operational,central_fixed_cost_bam_per_year,unit_fixed_cost_bam_per_year,one_off_cost_bam_per_unit_closed,closure_lag_years,data_status,notes
+INST_SYN_01,I,5,25,1,800000,300000,150000,1,SYNTHETIC_ASSUMPTION,"One illustrative institution. Central 800000 + 5 units x 300000 = existing 2300000 fixed cost. One unit may close after one eligible year; closure cost occurs then and recurring savings begin the following year. No staff or actual facility-level observations."
