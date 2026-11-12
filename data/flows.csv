@@ -1,0 +1,17 @@
+from_care,to_care,annual_count,data_status,calibration_reference,notes
+HOME,I,15,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+HOME,F,3,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+HOME,K,2,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+HOME,G,1,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+I,F,4,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+I,K,2,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+I,G,1,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+I,HOME,4,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+I,EXIT,4,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+F,I,1,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+F,HOME,2,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+F,EXIT,1,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+K,HOME,1,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+K,EXIT,2,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+G,HOME,1,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
+G,EXIT,1,SYNTHETIC_ASSUMPTION,,Baseline expected annual event count; not a measured transition rate.
