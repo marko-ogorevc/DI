@@ -221,14 +221,133 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
-  selected_annual <- reactive(annual_for(input$scenario))
-  selected_stocks <- reactive(stocks_for(input$scenario))
-  selected_institution <- reactive(institution_for(input$scenario))
+  # Each browser session owns its scenario override. No source CSVs are modified.
+  override <- reactiveVal(NULL)
+
+  restore_inputs <- function(id) {
+    d <- scenario_inputs[scenario_inputs$scenario_id == id, , drop = FALSE]
+    if (nrow(d) != 1L) return(invisible(NULL))
+    updateSliderInput(session, "adm_reduction",
+                      value = d$annual_cumulative_admission_reduction)
+    updateSliderInput(session, "transition_growth",
+                      value = d$annual_institution_transition_multiplier_growth)
+    updateSliderInput(session, "suitability",
+                      value = d$alternative_suitability_fraction)
+    updateCheckboxInput(session, "closure_allowed",
+                        value = as.logical(d$enable_unit_closure))
+    updateNumericInput(session, "foster_add", value = d$annual_foster_capacity_add)
+    updateNumericInput(session, "kinship_add", value = d$annual_kinship_capacity_add)
+    updateNumericInput(session, "group_add", value = d$annual_group_capacity_add)
+    updateNumericInput(session, "prevention_add",
+                       value = d$annual_prevention_families_add)
+    updateNumericInput(session, "transition_investment",
+                       value = d$annual_transition_investment_bam)
+    updateSliderInput(session, "avoidable_share",
+                      value = institution_inputs$avoidable_unit_fixed_cost_share[1])
+    updateSliderInput(session, "staff_lag",
+                      value = institution_inputs$staff_adjustment_lag_years[1])
+    invisible(NULL)
+  }
+
+  observeEvent(input$scenario, {
+    override(NULL)
+    restore_inputs(input$scenario)
+  })
+  observeEvent(input$reset_scenario, {
+    override(NULL)
+    restore_inputs(input$scenario)
+    showNotification("Scenario defaults restored.", type = "message", duration = 4)
+  })
+
+  observeEvent(input$run_scenario, {
+    req(input$scenario != "S0_BAU")
+    id <- input$scenario
+    x <- scenario_inputs[scenario_inputs$scenario_id == id, , drop = FALSE]
+    inst <- institution_inputs[1, , drop = FALSE]
+    values <- c(input$adm_reduction, input$transition_growth, input$suitability,
+                input$foster_add, input$kinship_add, input$group_add,
+                input$prevention_add, input$transition_investment,
+                input$avoidable_share, input$staff_lag)
+    if (length(values) != 10L || any(!is.finite(values)) || any(values < 0)) {
+      showNotification("Enter valid non-negative numeric assumptions.",
+                       type = "error", duration = 8)
+      return(invisible(NULL))
+    }
+    x$annual_cumulative_admission_reduction <- input$adm_reduction
+    x$annual_institution_transition_multiplier_growth <- input$transition_growth
+    x$alternative_suitability_fraction <- input$suitability
+    x$enable_unit_closure <- as.integer(isTRUE(input$closure_allowed))
+    x$annual_foster_capacity_add <- as.integer(round(input$foster_add))
+    x$annual_kinship_capacity_add <- as.integer(round(input$kinship_add))
+    x$annual_group_capacity_add <- as.integer(round(input$group_add))
+    x$annual_prevention_families_add <- as.integer(round(input$prevention_add))
+    x$annual_transition_investment_bam <- input$transition_investment
+    inst$avoidable_unit_fixed_cost_share <- input$avoidable_share
+    inst$staff_adjustment_lag_years <- as.integer(round(input$staff_lag))
+
+    outcome <- tryCatch({
+      result <- model_env$simulate_one(x, model_env$baseline,
+                                       model_env$flows, settings, inst)
+      cost <- result$costs
+      bau <- annual_for("S0_BAU")
+      ix <- match(cost$year, bau$year)
+      if (anyNA(ix)) stop("BAU reference years do not match the simulation.")
+      cost$bau_cost_bam <- bau$total_cost_bam[ix]
+      cost$incremental_cost_bam <- cost$total_cost_bam - cost$bau_cost_bam
+      cost$discounted_incremental_bam <- cost$incremental_cost_bam /
+        (1 + settings$discount_rate)^cost$year_index
+      cost$cumulative_incremental_bam <- cumsum(cost$incremental_cost_bam)
+      if (any(!is.finite(cost$total_cost_bam)) ||
+          any(!is.finite(cost$discounted_incremental_bam))) {
+        stop("The simulation returned non-finite costs.")
+      }
+      list(id = id, annual = cost, stocks = result$stocks,
+           flows = result$flows, institutions = result$institutions,
+           params = x, inst = inst)
+    }, error = function(e) {
+      showNotification(
+        paste("Scenario not feasible:", conditionMessage(e)),
+        type = "error", duration = 12
+      )
+      NULL
+    })
+    if (!is.null(outcome)) {
+      override(outcome)
+      showNotification("Scenario recalculated successfully.",
+                       type = "message", duration = 5)
+    }
+  })
+
+  active_data <- reactive({
+    current <- override()
+    if (!is.null(current) && identical(current$id, input$scenario))
+      return(current)
+    id <- input$scenario
+    list(id = id, annual = annual_for(id), stocks = stocks_for(id),
+         flows = flow_data[flow_data$scenario_id == id, , drop = FALSE],
+         institutions = institution_for(id),
+         params = scenario_inputs[scenario_inputs$scenario_id == id, , drop = FALSE],
+         inst = institution_inputs[1, , drop = FALSE])
+  })
+
+  selected_annual <- reactive(active_data()$annual)
+  selected_stocks <- reactive(active_data()$stocks)
+  selected_institution <- reactive(active_data()$institutions)
+  selected_flows <- reactive(active_data()$flows)
+  applied_scenario <- reactive(active_data()$params)
+  applied_institution <- reactive(active_data()$inst)
+
+  output$run_status <- renderText({
+    if (input$scenario == "S0_BAU")
+      return("BAU is a fixed comparator; select a reform scenario to edit.")
+    current <- override()
+    if (!is.null(current) && identical(current$id, input$scenario))
+      return("Custom scenario applied. Further edits require another Run scenario.")
+    "Published synthetic defaults displayed. Edit and click Run scenario to recalculate."
+  })
 
   output$npv_value <- renderText({
-    value <- scenario_summary$npv_incremental_cost_bam[
-      scenario_summary$scenario_id == input$scenario]
-    format_bam(value)
+    format_bam(sum(selected_annual()$discounted_incremental_bam))
   })
   output$institution_children <- renderText({
     sprintf("%.1f", tail(selected_annual()$institution_children_end, 1))
@@ -239,22 +358,32 @@ server <- function(input, output, session) {
   })
 
   output$cost_chart <- renderPlot({
-    ids <- if (isTRUE(input$compare_all)) scenario_ids else unique(c("S0_BAU", input$scenario))
-    d <- annual_data[annual_data$scenario_id %in% ids, , drop = FALSE]
+    ids <- if (isTRUE(input$compare_all)) scenario_ids else
+      unique(c("S0_BAU", input$scenario))
+    get_cost <- function(id) {
+      if (id == input$scenario) selected_annual()
+      else annual_for(id)
+    }
+    d <- do.call(rbind, lapply(ids, get_cost))
     par(mar = c(4.2, 4.7, 2.1, 1.2))
     plot(range(d$year), range(d$total_cost_bam / 1e6), type = "n",
          xlab = "Year", ylab = "Million BAM (2025 prices)", xaxt = "n")
     axis(1, at = sort(unique(d$year)))
     grid(col = "#E5ECF2")
     for (id in ids) {
-      x <- annual_for(id)
+      x <- get_cost(id)
       lines(x$year, x$total_cost_bam / 1e6,
             col = scenario_colors[id], lwd = 2.7)
       points(x$year, x$total_cost_bam / 1e6,
              col = scenario_colors[id], pch = 16, cex = 0.7)
     }
+    legend_labels <- unname(scenario_names[ids])
+    current <- override()
+    if (!is.null(current) && identical(current$id, input$scenario))
+      legend_labels[ids == input$scenario] <-
+        paste0(legend_labels[ids == input$scenario], " (edited)")
     legend("topright", inset = 0.015, bty = "n", cex = 0.82,
-           legend = unname(scenario_names[ids]),
+           legend = legend_labels,
            col = unname(scenario_colors[ids]), lwd = 2.7)
   })
 
@@ -308,9 +437,9 @@ server <- function(input, output, session) {
   })
 
   output$flow_chart <- renderPlot({
-    d <- flow_data[flow_data$scenario_id == input$scenario &
-                     flow_data$from_care == "I" &
-                     flow_data$to_care %in% c("F", "K", "G"), , drop = FALSE]
+    d <- selected_flows()
+    d <- d[d$from_care == "I" &
+             d$to_care %in% c("F", "K", "G"), , drop = FALSE]
     years <- sort(unique(d$year))
     realised <- vapply(years, function(y)
       sum(d$expected_events[d$year == y]), numeric(1))
@@ -373,6 +502,8 @@ server <- function(input, output, session) {
 
   output$scenario_table <- renderTable({
     d <- scenario_inputs
+    d[d$scenario_id == input$scenario, names(applied_scenario())] <-
+      applied_scenario()[1, ]
     data.frame(
       Scenario = d$scenario_id,
       `Closure allowed` = as.logical(d$enable_unit_closure),
@@ -385,7 +516,7 @@ server <- function(input, output, session) {
   }, striped = TRUE, spacing = "xs")
 
   output$institution_inputs_table <- renderTable({
-    x <- institution_inputs[1, ]
+    x <- applied_institution()[1, ]
     data.frame(
       `Central fixed cost (BAM/year)` = x$central_fixed_cost_bam_per_year,
       `Fixed cost/unit (BAM/year)` = x$unit_fixed_cost_bam_per_year,
@@ -400,6 +531,24 @@ server <- function(input, output, session) {
   output$download_selected <- downloadHandler(
     filename = function() paste0("DI_", input$scenario, "_annual.csv"),
     content = function(file) write.csv(selected_annual(), file, row.names = FALSE)
+  )
+
+  output$download_parameters <- downloadHandler(
+    filename = function() paste0("DI_", input$scenario, "_parameters.csv"),
+    content = function(file) {
+      param <- applied_scenario()
+      inst <- applied_institution()
+      dat <- data.frame(
+        scenario_id = input$scenario,
+        group = c(rep("scenario", ncol(param)), rep("institution", ncol(inst))),
+        parameter = c(names(param), names(inst)),
+        value = c(vapply(param, as.character, character(1)),
+                  vapply(inst, as.character, character(1))),
+        edited_in_session = !is.null(override()),
+        stringsAsFactors = FALSE
+      )
+      write.csv(dat, file, row.names = FALSE)
+    }
   )
 }
 
