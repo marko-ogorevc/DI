@@ -57,3 +57,27 @@ for (id in ids) {
 }
 stopifnot(all(is.finite(m$summary$npv_incremental_cost_bam)))
 cat("Shiny v0.1 syntax and data-contract checks passed.\n")
+
+
+# Runtime smoke test of the user-editable scenario contract. The model is
+# evaluated in memory, without modifying reference inputs or BAU results.
+custom <- m$scenarios[m$scenarios$scenario_id == "S1_RESTRUCT_MATCH75", , drop = FALSE]
+inst <- m$institution[1, , drop = FALSE]
+custom$annual_cumulative_admission_reduction <- 0.08
+custom$alternative_suitability_fraction <- 0.75
+custom$annual_transition_investment_bam <- 125000
+inst$avoidable_unit_fixed_cost_share <- 0.50
+inst$staff_adjustment_lag_years <- 3L
+custom_run <- m$simulate_one(custom, m$baseline, m$flows, m$settings, inst)
+stopifnot(nrow(custom_run$costs) == horizon)
+stopifnot(nrow(custom_run$institutions) == horizon)
+stopifnot(all(is.finite(custom_run$costs$total_cost_bam)))
+stopifnot(all(custom_run$stocks$children_end <=
+              custom_run$stocks$capacity_end + 1e-8))
+original <- m$annual[m$annual$scenario_id == custom$scenario_id, ]
+original <- original[order(original$year), , drop = FALSE]
+stopifnot(any(abs(custom_run$costs$total_cost_bam -
+                  original$total_cost_bam) > 1e-4))
+stopifnot(any(abs(custom_run$costs$institution_children_end -
+                  original$institution_children_end) > 1e-4))
+cat("Editable scenario smoke test passed.\n")
