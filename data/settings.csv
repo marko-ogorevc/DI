@@ -1,0 +1,2 @@
+base_year,horizon_years,discount_rate,prevention_families_start,prevention_cost_bam_per_family_year,system_fixed_cost_bam_per_year,monetary_price_year,data_status,notes
+2025,10,0.035,80,900,0,2025,SYNTHETIC_ASSUMPTION,Constant 2025 BAM; zero inflation; discount rate is illustrative; no claimed policy standard.
