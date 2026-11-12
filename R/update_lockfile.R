@@ -43,5 +43,5 @@ if (package_version(lock$Packages$renv$Version) < min_renv) {
   stop("Snapshot incomplete: renv version in lockfile is too old.")
 }
 cat("Regenerated renv.lock using renv ", as.character(packageVersion("renv")),
-    " and R ", getRversion(), ".\n",
+    " and R ", as.character(getRversion()), ".\n",
     "Commit and push the changed renv.lock to GitHub, then republish.\n", sep = "")
