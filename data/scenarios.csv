@@ -1,3 +1,4 @@
-scenario_id,annual_cumulative_admission_reduction,annual_institution_transition_multiplier_growth,annual_foster_capacity_add,annual_kinship_capacity_add,annual_group_capacity_add,annual_prevention_families_add,annual_transition_investment_bam,data_status,notes
-S0_BAU,0,0,0,0,0,0,0,SYNTHETIC_ASSUMPTION,Business-as-usual: base 2025 rates; no additional reforms.
-S1_PHASED,0.05,0.07,4,2,1,10,100000,SYNTHETIC_ASSUMPTION,Reform: admission reduction and faster safe exits; illustration only; no causal link asserted to prevention.
+scenario_id,annual_cumulative_admission_reduction,annual_institution_transition_multiplier_growth,annual_foster_capacity_add,annual_kinship_capacity_add,annual_group_capacity_add,annual_prevention_families_add,annual_transition_investment_bam,enable_unit_closure,data_status,notes
+S0_BAU,0,0,0,0,0,0,0,0,SYNTHETIC_ASSUMPTION,Business-as-usual: base 2025 rates; no additional reforms.
+S1_PHASED,0.05,0.07,4,2,1,10,100000,0,SYNTHETIC_ASSUMPTION,Reform: admission reduction and faster safe exits; illustration only; no causal link asserted to prevention.
+S1_PHASED_RESTRUCT,0.05,0.07,4,2,1,10,100000,1,SYNTHETIC_ASSUMPTION,Same child pathways as S1_PHASED; institution unit closures activated with separate one-off costs; synthetic only.
