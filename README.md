@@ -69,9 +69,8 @@ can accommodate the closing institutional population, staffing can be reassigned
 and eligibility has held for `max(closure_lag_years, staff_adjustment_lag_years)`
 consecutive years. No more than one unit closes per year; at least one remains
 operational; reopening is not modelled. One-off closure expenditure is incurred **in the year of closure**;
-the 300,000 BAM recurring unit-cost saving starts **the following year**.
-Institutional central overhead continues throughout. No staff, individual
-child suitability or geographic matching is yet explicitly modelled.
+the recurring saving is **195,000 BAM per closed unit per year** (65% × 300,000), starting **the following year**.
+Institutional central overhead and the non-avoidable share continue throughout. Staff FTE are tracked as aggregate synthetic proxies; individual child suitability and geographic matching are **not** modelled.
 
 **Cost identity (v0.3):**
 `institutional care cost = child-years × variable cost + central overhead
