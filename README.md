@@ -146,12 +146,14 @@ results should be confirmed using `Rscript R/test_model.R`; R could not be
 executed in the author's environment. These figures are **not BiH forecasts
 or estimates of child outcomes**.
 
-## Shiny dashboard (v0.1)
+## Shiny dashboard (v0.2 · editable synthetic scenarios)
 
-The dashboard is a **presentation layer** for the existing v0.3 model. It reads
-`R/run_model.R` when the app starts; the scenario selector does **not** change
-the model parameters. The four scenarios, data and numerical calculations remain
-unchanged. The UI requires only one R package, `shiny`; the model core and
+The dashboard loads the existing v0.3 model on startup. Selecting a scenario
+without editing retains the original synthetic calculations. For S1 reform
+scenarios, a user may change assumptions and click **Run scenario**; this
+invokes the same `simulate_one()` model function with session-local copies
+of parameters, recalculates annual results and NPV relative to the unchanged
+S0 baseline, and updates all charts. No CSV inputs are overwritten. The UI requires only one R package, `shiny`; the model core and
 smoke tests use base R.
 
 From the **repository root** (the folder containing `app.R`):
@@ -165,6 +167,12 @@ Or click **Run App** after opening `app.R` in RStudio.
 
 The interface provides:
 - A four-scenario selector and a toggle to compare all cost curves.
+- An editor for institutional admission reduction, transition growth,
+  placement matching share, and whether closures are allowed.
+- Expandable advanced settings for alternative capacity growth, preventive
+  families, annual transition investment, avoidable cost share and staff lag.
+- **Run scenario**, **Reset defaults**, and CSV download of applied assumptions.
+- Clear error feedback if an edited scenario exceeds care capacity.
 - Ten-year incremental fiscal NPV relative to business as usual, year-end
   institutional population, and year-end unit count.
 - Annual system-cost lines, a cost-component breakdown, and annual fiscal results.
@@ -175,11 +183,12 @@ The interface provides:
 - CSV export of the selected scenario's annual outputs.
 - An assumptions/limitations view.
 
-**Important:** The dashboard contains no live data, sliders, child-level
+**Important:** The dashboard contains no live data, child-level
 case matching, genuine institutional closure approvals or monetised long-term
 benefits. Counts can be fractional because these are deterministic expected
-values. Changing underlying parameters still requires editing the appropriate
-`data/*.csv` inputs and **restarting** the app. It may regenerate files under
+values. The sidebar editor changes inputs in-memory only. For changes to the published
+default scenario presets, edit the appropriate `data/*.csv` files and restart
+the app. It may regenerate files under
 `outputs/` when the underlying model loads.
 
 Test the model and the dashboard's R syntax/data requirements from the root:
@@ -189,6 +198,32 @@ source("R/test_model.R")
 source("R/test_dashboard.R")
 ```
 
-The second test parses `app.R` and validates the data contract. It does **not**
+The second test parses `app.R`, validates the data contract and exercises an edited-scenario simulation. It does **not**
 launch or visually test Shiny, which should be done locally after installing the
 package. No change has been made to the v0.3 simulation equations.
+
+## Deployment to Posit Connect Cloud (GitHub publishing)
+
+Connect Cloud requires **one dependency file** beside `app.R` in the GitHub
+repository. This project now includes a minimal `renv.lock` at the root with
+an explicit R runtime target (**R 4.5.2**) and the sole non-base runtime R
+package (**shiny 1.14.0**, CRAN). The lockfile was assembled for this initial
+deployment rather than generated from your local library. Once local deployment
+is confirmed, regenerate it with `renv` if you need to pin every transitive
+dependency or use another R version. Do not simultaneously commit a
+`manifest.json` unless you intend to use it in preference to `renv.lock`.
+
+In **Connect Cloud**, publish the repository `marko-ogorevc/DI`:
+choose framework **Shiny**, branch **main**, and primary file **app.R**. If
+automatic publishing on push is enabled, GitHub commits should trigger another
+deployment; otherwise use **Republish** from Connect Cloud. A successful GitHub
+push alone does not prove that the remote application deployed successfully.
+Review the build/runtime logs if deployment fails.
+
+Official reference: https://docs.posit.co/connect-cloud/how-to/r/dependencies.html
+and https://docs.posit.co/connect-cloud/how-to/r/shiny-r.html
+
+**Alternative: generate a Posit-managed manifest locally** from the project
+root via `install.packages("rsconnect")` then `rsconnect::writeManifest()`,
+commit `manifest.json` and push. The manifest takes precedence over renv.lock,
+and must accurately describe the R environment.
