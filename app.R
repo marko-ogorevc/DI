@@ -1,9 +1,11 @@
-# UNICEF BiH DI | Shiny dashboard v0.1
+# UNICEF BiH DI | Shiny dashboard v0.2
 # Run from the repository root:
 #   install.packages("shiny")   # once
 #   shiny::runApp(".")
 #
-# Visualization-only layer: uses R/run_model.R without changing its calculations.
+# The visualization layer supports session-only custom scenarios by calling
+# the already validated simulate_one() function directly. No CSVs are changed,
+# and S0_BAU always remains the original fixed reference scenario.
 # All inputs and results are SYNTHETIC; not observations or forecasts for BiH.
 
 if (!requireNamespace("shiny", quietly = TRUE)) {
@@ -86,10 +88,20 @@ ui <- fluidPage(
     .nav-tabs { margin-bottom: 0; }
     .tab-content h4 { color: #183A5D; font-weight: 650; margin-top: 22px; }
     .help-text { color: #61758A; font-size: 13px; }
+    .di-editor { margin-top: 18px; border-top: 1px solid #DFE8F0; padding-top: 9px; }
+    .di-editor details { background: #F3F7FA; border: 1px solid #E0E8EF;
+                         padding: 11px 13px; border-radius: 7px; margin: 12px 0; }
+    .di-editor summary { cursor: pointer; font-weight: 650; margin-bottom: 4px; }
+    .di-editor .form-group { margin-bottom: 15px; }
+    .di-run-status { padding: 9px; border-left: 3px solid #6095B4;
+                     color: #35556A; margin: 10px 0 3px; font-size: 13px; }
+    .di-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+    .di-actions .btn { margin: 0; }
+    .metric-value { overflow-wrap: anywhere; }
   "))),
   div(class = "di-header",
       h2("Child-centred DI | Economic simulation"),
-      p("UNICEF BiH · Synthetic demonstration · Model v0.3 / Shiny v0.1"),
+      p("UNICEF BiH · Synthetic demonstration · Model v0.3 / Shiny v0.2"),
       p("Annual child pathways, institutional restructuring and fiscal scenario comparisons.")),
   sidebarLayout(
     sidebarPanel(
@@ -100,6 +112,42 @@ ui <- fluidPage(
                                             unname(scenario_names)),
                   selected = "S1_PHASED_RESTRUCT"),
       checkboxInput("compare_all", "Compare all scenarios in cost chart", TRUE),
+      div(class = "di-editor",
+        conditionalPanel(
+          condition = "input.scenario != 'S0_BAU'",
+          h4("Edit scenario assumptions"),
+          p(class = "help-text",
+            "Choose values, then click Run scenario. These inputs affect this browser session only."),
+          sliderInput("adm_reduction", "Additional I admission reduction (per year)",
+                      min = 0, max = 0.15, value = 0.05, step = 0.01),
+          sliderInput("transition_growth", "I transition multiplier growth (per year)",
+                      min = 0, max = 0.25, value = 0.07, step = 0.01),
+          sliderInput("suitability", "Share of suitable I-to-alternative placements",
+                      min = 0, max = 1, value = 1, step = 0.05),
+          checkboxInput("closure_allowed", "Allow institutional unit closures", TRUE),
+          tags$details(
+            tags$summary("Capacity, finance & restructuring"),
+            numericInput("foster_add", "New foster places / year",
+                         value = 4, min = 0, max = 50, step = 1),
+            numericInput("kinship_add", "New kinship places / year",
+                         value = 2, min = 0, max = 50, step = 1),
+            numericInput("group_add", "New group care places / year",
+                         value = 1, min = 0, max = 30, step = 1),
+            numericInput("prevention_add", "Additional families supported / year",
+                         value = 10, min = 0, max = 100, step = 1),
+            numericInput("transition_investment", "Annual transition investment (BAM)",
+                         value = 100000, min = 0, max = 2000000, step = 25000),
+            sliderInput("avoidable_share", "Avoidable fixed cost share per closed unit",
+                        min = 0, max = 1, value = 0.65, step = 0.05),
+            sliderInput("staff_lag", "Staff adjustment / closure lead time (years)",
+                        min = 1, max = 5, value = 2, step = 1)
+          ),
+          div(class = "di-actions",
+              actionButton("run_scenario", "Run scenario", class = "btn-primary"),
+              actionButton("reset_scenario", "Reset defaults"))
+        ),
+        div(class = "di-run-status", textOutput("run_status"))
+      ),
       tags$hr(),
       h4("Model settings"),
       p(class = "help-text",
@@ -109,9 +157,11 @@ ui <- fluidPage(
         sprintf("Discount rate: %.1f%% · Prices: %s BAM",
                 100 * settings$discount_rate, settings$monetary_price_year)),
       p(class = "help-text",
-        "Scenario parameters are fixed in the CSV inputs in this first version."),
+        "The BAU comparator is fixed. Edited scenarios are recalculated in memory without changing the CSV inputs."),
       downloadButton("download_selected", "Download selected annual results",
-                     class = "btn-primary"),
+                     class = "btn-default"),
+      downloadButton("download_parameters", "Download applied assumptions",
+                     class = "btn-default"),
       div(class = "di-notice",
           strong("Synthetic data only."),
           p("This represents one hypothetical local care system, not actual BiH children, facilities, budgets or forecasts. Negative incremental NPV means net fiscal savings relative to BAU."))
@@ -163,7 +213,8 @@ ui <- fluidPage(
                  p("Financial outputs are discounted incremental fiscal costs, not a complete societal cost-benefit analysis. There is no monetisation of long-term child outcomes."),
                  p("All baseline populations, costs, transition rates, workforce data, suitability shares and closure rules are synthetic. The suitability share is an aggregate stress-test assumption, not an individual child assessment."),
                  p("Capacity constraints and the two-year workforce-adjustment lag are simplified. They cannot establish that a particular placement or unit closure is legally or professionally feasible."),
-                 p("Costs of closed units that cannot be avoided remain in system costs. Model parameters must be replaced with verified information before policy use."))
+                 p("Costs of closed units that cannot be avoided remain in system costs. Model parameters must be replaced with verified information before policy use."),
+                 p("Custom scenario assumptions apply only while this app is running in the current session. Download applied assumptions if you want to save them. The published source CSVs and BAU comparator are unchanged."))
       )
     )
   )
