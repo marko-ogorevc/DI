@@ -145,3 +145,50 @@ scenario closures occur at the end of **2028** and **2034**. The expected R
 results should be confirmed using `Rscript R/test_model.R`; R could not be
 executed in the author's environment. These figures are **not BiH forecasts
 or estimates of child outcomes**.
+
+## Shiny dashboard (v0.1)
+
+The dashboard is a **presentation layer** for the existing v0.3 model. It reads
+`R/run_model.R` when the app starts; the scenario selector does **not** change
+the model parameters. The four scenarios, data and numerical calculations remain
+unchanged. The UI requires only one R package, `shiny`; the model core and
+smoke tests use base R.
+
+From the **repository root** (the folder containing `app.R`):
+
+```r
+install.packages("shiny")  # once only
+shiny::runApp(".")
+```
+
+Or click **Run App** after opening `app.R` in RStudio.
+
+The interface provides:
+- A four-scenario selector and a toggle to compare all cost curves.
+- Ten-year incremental fiscal NPV relative to business as usual, year-end
+  institutional population, and year-end unit count.
+- Annual system-cost lines, a cost-component breakdown, and annual fiscal results.
+- Child trajectories across institutional, foster, kinship and community care.
+- Expected institutional transitions and those deferred by the synthetic
+  placement-suitability proxy.
+- Institutional unit closures, occupancy, capacity and staffing-FTE adjustments.
+- CSV export of the selected scenario's annual outputs.
+- An assumptions/limitations view.
+
+**Important:** The dashboard contains no live data, sliders, child-level
+case matching, genuine institutional closure approvals or monetised long-term
+benefits. Counts can be fractional because these are deterministic expected
+values. Changing underlying parameters still requires editing the appropriate
+`data/*.csv` inputs and **restarting** the app. It may regenerate files under
+`outputs/` when the underlying model loads.
+
+Test the model and the dashboard's R syntax/data requirements from the root:
+
+```r
+source("R/test_model.R")
+source("R/test_dashboard.R")
+```
+
+The second test parses `app.R` and validates the data contract. It does **not**
+launch or visually test Shiny, which should be done locally after installing the
+package. No change has been made to the v0.3 simulation equations.
