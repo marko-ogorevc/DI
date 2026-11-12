@@ -1,0 +1,5 @@
+care_type,children_start,capacity_start,variable_cost_bam_per_child_year,fixed_cost_bam_per_year,data_status,calibration_reference,notes
+I,100,125,10500,2300000,SYNTHETIC_ESTIMATE,E2,One stylised institution-provider system; fixed component illustrates slow cost adjustment.
+F,50,90,10800,0,SYNTHETIC_ESTIMATE,E3,Foster: ~900 BAM/month all-in; includes assumed support above quoted allowance.
+K,35,65,7200,0,SYNTHETIC_ESTIMATE,,Kinship support illustrative; not an observed BiH rate.
+G,15,35,25000,100000,SYNTHETIC_ESTIMATE,,Small-group/community alternative illustrative; classification must be checked.
