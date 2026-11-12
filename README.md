@@ -204,14 +204,36 @@ package. No change has been made to the v0.3 simulation equations.
 
 ## Deployment to Posit Connect Cloud (GitHub publishing)
 
-Connect Cloud requires **one dependency file** beside `app.R` in the GitHub
-repository. This project now includes a minimal `renv.lock` at the root with
-an explicit R runtime target (**R 4.5.2**) and the sole non-base runtime R
-package (**shiny 1.14.0**, CRAN). The lockfile was assembled for this initial
-deployment rather than generated from your local library. Once local deployment
-is confirmed, regenerate it with `renv` if you need to pin every transitive
-dependency or use another R version. Do not simultaneously commit a
-`manifest.json` unless you intend to use it in preference to `renv.lock`.
+Connect Cloud requires `manifest.json` or a genuine `renv.lock` beside
+`app.R`. **The initial manually assembled `renv.lock` in this repository
+was rejected as outdated and must be replaced with an actual snapshot.**
+Do not republish from the current lockfile.
+
+In **RStudio**, after pulling the latest repository version, run from its
+root directory:
+
+```r
+source("R/update_lockfile.R")
+```
+
+This script installs/updates renv to at least 1.1.0 if necessary, ensures
+Shiny is installed, then executes a real
+`renv::snapshot(packages = c("shiny", "renv"), prompt = FALSE)`
+using your **actual installed R and R package versions**. It also validates
+that `renv.lock` includes both required packages.
+
+Then commit and push the **generated** lockfile:
+
+```bash
+git add renv.lock
+git commit -m "Regenerate renv.lock with renv snapshot"
+git push origin main
+```
+
+Only after GitHub contains the regenerated lockfile, **Republish** in Connect
+Cloud. Connect Cloud prefers `manifest.json` if both are present, so do not
+commit a stale manifest alongside the generated lockfile. You do not need to
+initialize a full project-local `renv` library just to generate a snapshot.
 
 In **Connect Cloud**, publish the repository `marko-ogorevc/DI`:
 choose framework **Shiny**, branch **main**, and primary file **app.R**. If
