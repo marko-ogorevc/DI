@@ -1,4 +1,4 @@
-# UNICEF BiH DI - minimal synthetic M1-M3 demonstration (v0.2, base R only)
+# UNICEF BiH DI - minimal synthetic M1-M3 demonstration (v0.3, base R only)
 # Run from the repository root: Rscript R/run_model.R
 # DISCLAIMER: ALL simulated inputs are synthetic. Published anchors are in data/evidence.csv.
 # The model is a small hypothetical service system, NOT an estimate for Bosnia and Herzegovina.
@@ -23,9 +23,21 @@ stopifnot(institution$min_units_operational[1] >= 1)
 stopifnot(institution$min_units_operational[1] <= institution$units_start[1])
 stopifnot(institution$closure_lag_years[1] >= 1)
 stopifnot(all(scenarios$enable_unit_closure %in% c(0, 1)))
+stopifnot(all(scenarios$alternative_suitability_fraction >= 0 &
+              scenarios$alternative_suitability_fraction <= 1))
+stopifnot(all(is.finite(scenarios$alternative_suitability_fraction)))
+# Aggregate suitability shares are proxy assumptions; they are NOT child-level
+# eligibility determinations or a substitute for case management.
 stopifnot(all(institution$central_fixed_cost_bam_per_year >= 0))
 stopifnot(all(institution$unit_fixed_cost_bam_per_year >= 0))
 stopifnot(all(institution$one_off_cost_bam_per_unit_closed >= 0))
+stopifnot(all(institution$central_staff_fte >= 0))
+stopifnot(all(institution$staff_fte_per_unit > 0))
+stopifnot(all(institution$max_annual_staff_redeployment_fte >= 0))
+stopifnot(all(institution$staff_adjustment_lag_years >= 1))
+stopifnot(all(institution$avoidable_unit_fixed_cost_share >= 0 &
+              institution$avoidable_unit_fixed_cost_share <= 1))
+stopifnot(all(is.finite(as.numeric(institution$avoidable_unit_fixed_cost_share))))
 stopifnot(abs(institution$units_start[1] * institution$places_per_unit[1] -
               baseline$capacity_start[baseline$care_type == "I"]) < 1e-8)
 stopifnot(abs(institution$central_fixed_cost_bam_per_year[1] +
@@ -68,14 +80,26 @@ simulate_one <- function(scenario, base, flow_rules, config, inst) {
       }
       realised[j] <- q
     }
+    # Unmatched planned institutional transitions are deferred, not redirected.
+    # This aggregate proxy cannot assess individual child / family suitability.
+    planned <- realised
+    matched <- which(flow_rules$from_care == "I" &
+                     flow_rules$to_care %in% c("F", "K", "G"))
+    realised[matched] <- realised[matched] *
+      as.numeric(scenario$alternative_suitability_fraction)
+    suitability_deferred <- planned - realised
+
     # A person cannot leave a care type more than once within a time step.
+    pre_source_limit <- realised
     for (src in cares) {
       ix <- which(flow_rules$from_care == src)
       if (length(ix) && sum(realised[ix]) > opening[src]) {
         realised[ix] <- realised[ix] * opening[src] / sum(realised[ix])
       }
     }
-    # Capacity constraint. v0.1 stops if a scenario is infeasible; it never moves children into unsuitable care.
+    source_limit_deferred <- pre_source_limit - realised
+    # Capacity constraint. v0.3 stops if a scenario is infeasible;
+    # it never moves children into unsuitable care or fabricates placements.
     closing <- opening
     for (c in cares) {
       closing[c] <- opening[c] + sum(realised[flow_rules$to_care == c]) - sum(realised[flow_rules$from_care == c])
@@ -93,27 +117,46 @@ simulate_one <- function(scenario, base, flow_rules, config, inst) {
     }
     # Care costs use average child-years. Institutional overhead is not proportional to occupancy.
     child_years <- (opening + closing) / 2
+    # Only the avoidable share of a closed unit's costs disappears.
+    # Retained expenses remain at the system level, including possible labour
+    # reallocation, so unit closure is NOT assumed to save all payroll costs.
+    closed_units_before_year <- as.integer(inst$units_start) - units_open
+    retained_closed_unit_cost <- closed_units_before_year *
+      as.numeric(inst$unit_fixed_cost_bam_per_year) *
+      (1 - as.numeric(inst$avoidable_unit_fixed_cost_share))
     institution_fixed <- as.numeric(inst$central_fixed_cost_bam_per_year) +
-      units_open * as.numeric(inst$unit_fixed_cost_bam_per_year)
+      units_open * as.numeric(inst$unit_fixed_cost_bam_per_year) +
+      retained_closed_unit_cost
     institution_variable <- as.numeric(child_years["I"] * variable_cost["I"])
     institution_care <- institution_fixed + institution_variable
     other_care <- sum((child_years * variable_cost + fixed_cost)[cares != "I"])
     care_cost <- institution_care + other_care
 
-    # Closure takes effect at year-end: one unit at most, and only if the
-    # remaining units can accommodate closing-year institutional population.
-    # A lag of 1 means one eligible year; the fixed-cost saving starts next year.
+    # Conservative year-end closure: capacity + ability to redeploy/reassign
+    # one unit's staff, sustained for the longest stated lead time.
+    # This is an aggregate staffing-readiness proxy, not a legal/workforce plan.
     units_needed <- max(as.integer(inst$min_units_operational),
                         ceiling(as.numeric(closing["I"]) / as.numeric(inst$places_per_unit) - 1e-8))
+    capacity_eligible <- (units_needed < units_open)
+    staff_eligible <- (as.numeric(inst$max_annual_staff_redeployment_fte) + 1e-8 >=
+                       as.numeric(inst$staff_fte_per_unit))
     closure_eligible <- (as.integer(scenario$enable_unit_closure) == 1L &&
-                         units_needed < units_open)
+                         capacity_eligible && staff_eligible)
     if (closure_eligible) closure_wait <- closure_wait + 1L else closure_wait <- 0L
+    required_lag <- max(as.integer(inst$closure_lag_years),
+                        as.integer(inst$staff_adjustment_lag_years))
     units_closed <- 0L
-    if (closure_eligible && closure_wait >= as.integer(inst$closure_lag_years)) {
+    if (closure_eligible && closure_wait >= required_lag) {
       units_active <- units_open - 1L
       units_closed <- 1L
       closure_wait <- 0L
     }
+    staff_redeployed_this_year <- units_closed * as.numeric(inst$staff_fte_per_unit)
+    # Central staffing and staff in still-open units remain required.
+    staff_fte_start <- as.numeric(inst$central_staff_fte) +
+      units_open * as.numeric(inst$staff_fte_per_unit)
+    staff_fte_end <- as.numeric(inst$central_staff_fte) +
+      units_active * as.numeric(inst$staff_fte_per_unit)
     institution_restructuring <- units_closed * as.numeric(inst$one_off_cost_bam_per_unit_closed)
     # General transition investment is separate from the unit-closure cost;
     # the input assumptions must avoid overlap when replaced with real data.
@@ -135,7 +178,10 @@ simulate_one <- function(scenario, base, flow_rules, config, inst) {
       flow_rows[[length(flow_rows)+1L]] <- data.frame(
         scenario_id=scenario$scenario_id, year=year,
         from_care=flow_rules$from_care[j], to_care=flow_rules$to_care[j],
-        expected_events=realised[j]
+        planned_events=planned[j],
+        expected_events=realised[j],
+        deferred_suitability_events=suitability_deferred[j],
+        deferred_source_limit_events=source_limit_deferred[j]
       )
     }
     institution_rows[[length(institution_rows)+1L]] <- data.frame(
@@ -143,7 +189,12 @@ simulate_one <- function(scenario, base, flow_rules, config, inst) {
       units_start=units_open, units_end=units_active,
       capacity_start=units_open * as.numeric(inst$places_per_unit),
       capacity_end=units_active * as.numeric(inst$places_per_unit),
-      closure_eligible=closure_eligible, units_closed=units_closed,
+      capacity_eligible=capacity_eligible, staff_eligible=staff_eligible,
+      closure_eligible=closure_eligible, closure_wait_years=closure_wait,
+      required_lag_years=required_lag, units_closed=units_closed,
+      staff_fte_start=staff_fte_start, staff_fte_end=staff_fte_end,
+      staff_redeployed_fte=staff_redeployed_this_year,
+      retained_closed_unit_cost_bam=retained_closed_unit_cost,
       fixed_cost_bam=institution_fixed, variable_cost_bam=institution_variable,
       one_off_closure_cost_bam=institution_restructuring
     )
@@ -155,6 +206,9 @@ simulate_one <- function(scenario, base, flow_rules, config, inst) {
       institution_variable_cost_bam=institution_variable,
       institution_units_start=units_open, institution_units_end=units_active,
       units_closed=units_closed, institution_restructuring_cost_bam=institution_restructuring,
+      deferred_suitability_events=sum(suitability_deferred),
+      deferred_source_limit_events=sum(source_limit_deferred),
+      retained_closed_unit_cost_bam=retained_closed_unit_cost,
       prevention_families=families, care_cost_bam=care_cost,
       prevention_cost_bam=prevention_cost, transition_cost_bam=transition_cost,
       total_cost_bam=total
@@ -183,6 +237,8 @@ if (!dir.exists("outputs")) dir.create("outputs")
 write.csv(stocks, "outputs/stocks.csv", row.names=FALSE)
 write.csv(flow_results, "outputs/realised_flows.csv", row.names=FALSE)
 write.csv(institution_results, "outputs/institution_units.csv", row.names=FALSE)
+stopifnot(all(annual$institution_units_start >= annual$institution_units_end))
+stopifnot(all(annual$deferred_suitability_events >= -1e-9))
 stopifnot(all(abs(annual$total_cost_bam - annual$care_cost_bam -
                   annual$prevention_cost_bam - annual$transition_cost_bam -
                   annual$institution_restructuring_cost_bam -
